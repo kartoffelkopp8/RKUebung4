@@ -25,7 +25,7 @@ public class Server {
   private static BufferedReader[] readers;
 
   /** Number of players. */
-  private static final int NUM_PLAYERS = 1;
+  private static final int NUM_PLAYERS = 2;
 
   /** Currently active player (0 - n-1). */
   private static int curPlayer;
@@ -46,7 +46,7 @@ public class Server {
     while (!hangman.win() && !hangman.dead())// Loop until solution is found or hangman is dead.
     {
       // Inform players and read input.
-        writers[curPlayer].write("its your turn to guess \n");
+        writers[curPlayer].write("\n its your turn to guess \n");
         writers[curPlayer].flush();
 
         //Process input
@@ -58,7 +58,7 @@ public class Server {
           output = hangman.checkChar(input.charAt(0));
         }else{
           output = "No character/word entered";
-          writers[curPlayer].write("Please enter a character");
+          writers[curPlayer].write("Please enter a character\n");
           writers[curPlayer].flush();
         }
       writeToAllButCur("Player " + (curPlayer + 1) + " guessed " + input
@@ -67,7 +67,7 @@ public class Server {
       //  Process input and inform players.
       writeToAll(hangman.getHangman());
       //  Set curPlayer to next player.
-      curPlayer++;
+      curPlayer = (curPlayer + 1) % NUM_PLAYERS;
     }
 
     // Inform players about the game result.
@@ -109,7 +109,7 @@ public class Server {
       writers[curPlayer] = new BufferedWriter(new OutputStreamWriter(clientSocket.getOutputStream()));
       readers[curPlayer] = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
 
-      writers[curPlayer].write("Connection successful, welcome to the Game \n ");
+      writers[curPlayer].write("Connection successful, welcome to the Game\n ");
       writers[curPlayer].flush();
 
       curPlayer++;
