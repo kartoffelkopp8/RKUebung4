@@ -18,12 +18,11 @@ import java.util.StringTokenizer;
  * methods and fields are static.
  */
 public final class WebServer {
-	// TODO TCP-Server-Socket definition.
-
-
 
 	/** HTTP EOL sequence. */
-	private static final String EOL = "";// TODO
+	private static final String EOL = "\r\n";
+
+	private static final int portNumber = 2345;
 
 	/**
 	 * Session ID to distinguish between the current and previous game sessions.
@@ -65,20 +64,21 @@ public final class WebServer {
 	 * @throws Exception
 	 */
 	public static void main(String[] argv) throws Exception {
-		// TODO Initialize socket, global variables and hangman.
-
-
-
+		// Initialize socket, global variables and hangman.
+		Hangman hangman = new Hangman();
+		ServerSocket serverSocket = new ServerSocket(portNumber);
+		int currentPlayers = 0;
+		session++;
 
 
 
 
 		while (true) {
-			// TODO Accept client request.
+			// Accept client request.
+			Socket clientSocket = serverSocket.accept();
 
-
-			BufferedReader br = null; // TODO
-			BufferedWriter bw = null; // TODO
+			BufferedReader br = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+			BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(clientSocket.getOutputStream()));
 
 			if (!gameStarted && !gameEnded) {
 				processInitRequest(br, bw);
@@ -182,8 +182,8 @@ public final class WebServer {
 					+ "Spieler "
 					+ curPlayer + " ist an der Reihe.";
 
-		} else if (true)// TODO Player is current player.
-		{
+		} else if (true){ // TODO Player is current player.
+
 			content += "</HEAD><BODY>"
 					+ "<PRE>[ ] [ ]-[ ]<BR>         |<BR>[ ]     [ ]<BR> |     /<BR>[ ]-[ ]<BR>____________</PRE>"
 					+ prevMsg + hangman.getHangmanHtml()
@@ -269,21 +269,26 @@ public final class WebServer {
 		 * request line to the console. If the request is for "/favicon.ico",
 		 * send a 404 response and return null.
 		 */
-
-
-
-
-
-
-
-
+		String inLine = br.readLine();
+		if(inLine == null || inLine.isEmpty()){
+			return null;
+		} else if (inLine.contains("/favicon.ico")) {
+			sendNotFoundResponse(bw);
+			return  null;
+		}
+		System.out.println(inLine);
+		sendNotFoundResponse(bw);
 
 		sessionCookie = -1;
 		playerCookie = -1;
 
 		// TODO Step through all remaining header lines and extract cookies if
 		// present (yamyam). Optionally print the header lines to the console.
-
+		String headerline = br.readLine();
+		while(headerline != null && !headerline.isEmpty()){
+			
+			headerline = br.readLine();
+		}
 
 
 
@@ -314,8 +319,11 @@ public final class WebServer {
 	 */
 	private static void sendNotFoundResponse(BufferedWriter bw)
 			throws Exception {
-		// TODO Construct and send a valid HTTP/1.0 404-response.
-
+		// Construct and send a valid HTTP/1.0 404-response.
+		bw.write("HTTP/1.0 404 Not Found" + EOL);
+		bw.write("Content-Type: text/html" + EOL);
+		bw.write("<HTML><HEAD><TITLE>Not Found</TITLE></HEAD><BODY>404 Not Found</BODY></HTML>");
+		bw.flush();
 
 
 
@@ -338,17 +346,13 @@ public final class WebServer {
 	 */
 	private static void sendOkResponse(BufferedWriter bw, String cookieLines,
 			String content) throws Exception {
-		// TODO Construct and send a valid HTTP/1.0 200-response with the given
+		//  Construct and send a valid HTTP/1.0 200-response with the given
 		// cookies (if not null) and the given content.
-
-
-
-
-
-
-
-
-
-
+		bw.write("HTTP/1.0 200 OK" + EOL);
+		if(cookieLines != null) {
+			bw.write(cookieLines);
+		}
+		bw.write("Content-Type: text/html" + EOL);
+		bw.flush();
 	}
 }
