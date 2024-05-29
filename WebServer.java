@@ -18,11 +18,11 @@ import java.util.StringTokenizer;
  * methods and fields are static.
  */
 public final class WebServer {
+	private static final int portNumber = 2345;
+	private static ServerSocket serverSocket;
 
 	/** HTTP EOL sequence. */
 	private static final String EOL = "\r\n";
-
-	private static final int portNumber = 2345;
 
 	/**
 	 * Session ID to distinguish between the current and previous game sessions.
@@ -65,31 +65,26 @@ public final class WebServer {
 	 */
 	public static void main(String[] argv) throws Exception {
 		// Initialize socket, global variables and hangman.
-		Hangman hangman = new Hangman();
-		ServerSocket serverSocket = new ServerSocket(portNumber);
-		int currentPlayers = 0;
+		serverSocket = new ServerSocket(portNumber);
+		hangman = new Hangman();
 		session++;
-
-
-
 
 		while (true) {
 			// Accept client request.
-			Socket clientSocket = serverSocket.accept();
+			try (Socket clientSocket = serverSocket.accept()) {
+				BufferedReader br = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+				BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(clientSocket.getOutputStream()));
 
-			BufferedReader br = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-			BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(clientSocket.getOutputStream()));
-
-			if (!gameStarted && !gameEnded) {
-				processInitRequest(br, bw);
-			} else if (gameStarted && !gameEnded) {
-				processGameRequest(br, bw);
-			} else {
-				processEndRequest(br, bw);
-				if (curPlayer == NUM_PLAYERS)
-					break;
+				if (!gameStarted && !gameEnded) {
+					processInitRequest(br, bw);
+				} else if (gameStarted && !gameEnded) {
+					processGameRequest(br, bw);
+				} else {
+					processEndRequest(br, bw);
+					if (curPlayer == NUM_PLAYERS)
+						break;
+				}
 			}
-
 		}
 
 	}
@@ -104,33 +99,29 @@ public final class WebServer {
 	 *            The BufferedWriter used to write the HTTP response.
 	 * @throws Exception
 	 */
-	private static void processInitRequest(BufferedReader br, BufferedWriter bw)
-			throws Exception {
-		// TODO Process request and header lines.
-
-
-
+	private static void processInitRequest(BufferedReader br, BufferedWriter bw) throws Exception {
+		if (processHeaderLines(br, bw) == null) return;
 
 		String cookieLines = null;
 		String content = "<HTML><HEAD><META http-equiv=\"refresh\" content=\"2\"><TITLE>Hangman</TITLE></HEAD><BODY>"
 				+ "<PRE>[ ] [ ]-[ ]<BR>         |<BR>[ ]     [ ]<BR> |     /<BR>[ ]-[ ]<BR>____________</PRE>"
 				+ "Willkommen zu I7Hangman!<BR>Du bist Spieler ";
-		// TODO If the player is unknown: set cookies and increment curPlayer.
+		// If the player is unknown: set cookies and increment curPlayer.
 		// Add player number to content.
 
-
-
-
-
-
-
-
+		if (playerCookie == -1) {
+			cookieLines += "Set-Cookie: sessionId=" + session + EOL;
+			cookieLines += "Set-Cookie: playerId=" + curPlayer + EOL;
+			content += curPlayer;
+			curPlayer++;
+		} else {
+			content += playerCookie;
+		}
 
 		content += ".<BR>Es darf reihum ein Buchstabe geraten werden.<BR>Die Seite lädt automatisch neu.<BR>"
 				+ "Warte auf alle Spieler...</BODY></HTML>";
-
-		// TODO Send response to player.
-
+		
+		sendOkResponse(bw, cookieLines, content);
 
 		if (curPlayer == NUM_PLAYERS) {
 			gameStarted = true;
@@ -148,10 +139,8 @@ public final class WebServer {
 	 *            The BufferedWriter used to write the HTTP response.
 	 * @throws Exception
 	 */
-	private static void processGameRequest(BufferedReader br, BufferedWriter bw)
-			throws Exception {
-		// TODO Process request and header lines.
-
+	private static void processGameRequest(BufferedReader br, BufferedWriter bw) throws Exception {
+		if (processHeaderLines(br, bw) == null) return;
 
 
 
@@ -225,9 +214,8 @@ public final class WebServer {
 	 *            The BufferedWriter used to write the HTTP response.
 	 * @throws Exception
 	 */
-	private static void processEndRequest(BufferedReader br, BufferedWriter bw)
-			throws Exception {
-		// TODO Process request and header lines.
+	private static void processEndRequest(BufferedReader br, BufferedWriter bw) throws Exception {
+		if (processHeaderLines(br, bw) == null) return;
 
 
 
@@ -261,53 +249,38 @@ public final class WebServer {
 	 *         related request, otherwise null.
 	 * @throws Exception
 	 */
-	private static String processHeaderLines(BufferedReader br,
-			BufferedWriter bw) throws Exception {
-		/*
-		 * TODO Get the request line of the HTTP request message. Return null if
-		 * its length is zero or if end of stream is reached. Print out the
-		 * request line to the console. If the request is for "/favicon.ico",
-		 * send a 404 response and return null.
-		 */
+	private static String processHeaderLines(BufferedReader br, BufferedWriter bw) throws Exception {
 		String inLine = br.readLine();
-		if(inLine == null || inLine.isEmpty()){
+		if (inLine == null || inLine.isEmpty()){
 			return null;
 		} else if (inLine.contains("/favicon.ico")) {
 			sendNotFoundResponse(bw);
 			return  null;
 		}
 		System.out.println(inLine);
-		sendNotFoundResponse(bw);
 
 		sessionCookie = -1;
 		playerCookie = -1;
 
-		// TODO Step through all remaining header lines and extract cookies if
-		// present (yamyam). Optionally print the header lines to the console.
+		// Parse cookies
 		String headerline = br.readLine();
-		while(headerline != null && !headerline.isEmpty()){
-			
+		while (headerline != null && !headerline.isEmpty()){
+			String line = br.readLine();
+			if (line == "" || line == null) break;
+			if (!line.startsWith("Cookie")) continue;
+
+			String cookies = line.substring(7);
+			for (String cookie : cookies.split("; ")) {
+				if (cookie.startsWith("sessionId")) {
+					sessionCookie = Integer.parseInt(cookie.substring(10));
+				} else if (cookie.startsWith("playerId")) {
+					playerCookie = Integer.parseInt(cookie.substring(9));
+				}
+			}
 			headerline = br.readLine();
 		}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-		// TODO Return
-		return null;
+		return inLine;
 	}
 
 	/**
@@ -321,16 +294,10 @@ public final class WebServer {
 			throws Exception {
 		// Construct and send a valid HTTP/1.0 404-response.
 		bw.write("HTTP/1.0 404 Not Found" + EOL);
-		bw.write("Content-Type: text/html" + EOL);
+		bw.write("Content-Type: text/html" + EOL + EOL);
+		bw.write("<!DOCTYPE html>" + EOL);
 		bw.write("<HTML><HEAD><TITLE>Not Found</TITLE></HEAD><BODY>404 Not Found</BODY></HTML>");
 		bw.flush();
-
-
-
-
-
-
-
 	}
 
 	/**
@@ -346,13 +313,15 @@ public final class WebServer {
 	 */
 	private static void sendOkResponse(BufferedWriter bw, String cookieLines,
 			String content) throws Exception {
-		//  Construct and send a valid HTTP/1.0 200-response with the given
+		// Construct and send a valid HTTP/1.0 200-response with the given
 		// cookies (if not null) and the given content.
 		bw.write("HTTP/1.0 200 OK" + EOL);
-		if(cookieLines != null) {
+		if (cookieLines != null) {
 			bw.write(cookieLines);
 		}
-		bw.write("Content-Type: text/html" + EOL);
+		bw.write("Content-Type: text/html" + EOL + EOL);
+		bw.write("<!DOCTYPE html>" + EOL);
+		bw.write(content);
 		bw.flush();
 	}
 }
