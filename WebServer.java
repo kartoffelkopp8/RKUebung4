@@ -35,6 +35,9 @@ public final class WebServer {
 	/** Player number of the currently handled request. */
 	private static int playerCookie;
 
+	private static Character letterGuess;
+	private static String wordGuess;
+
 	/** Hangman game object. */
 	private static Hangman hangman;
 
@@ -67,7 +70,7 @@ public final class WebServer {
 		// Initialize socket, global variables and hangman.
 		serverSocket = new ServerSocket(portNumber);
 		hangman = new Hangman();
-		session++;
+		session = new Random().nextInt();
 
 		while (true) {
 			// Accept client request.
@@ -86,7 +89,6 @@ public final class WebServer {
 				}
 			}
 		}
-
 	}
 
 	/**
@@ -102,17 +104,16 @@ public final class WebServer {
 	private static void processInitRequest(BufferedReader br, BufferedWriter bw) throws Exception {
 		if (processHeaderLines(br, bw) == null) return;
 
-		String cookieLines = null;
+		String cookieLines = "";
 		String content = "<HTML><HEAD><META http-equiv=\"refresh\" content=\"2\"><TITLE>Hangman</TITLE></HEAD><BODY>"
 				+ "<PRE>[ ] [ ]-[ ]<BR>         |<BR>[ ]     [ ]<BR> |     /<BR>[ ]-[ ]<BR>____________</PRE>"
 				+ "Willkommen zu I7Hangman!<BR>Du bist Spieler ";
-		// If the player is unknown: set cookies and increment curPlayer.
-		// Add player number to content.
 
-		if (playerCookie == -1) {
+		if (sessionCookie != session) {
 			cookieLines += "Set-Cookie: sessionId=" + session + EOL;
 			cookieLines += "Set-Cookie: playerId=" + curPlayer + EOL;
 			content += curPlayer;
+			System.out.println("Player " + curPlayer + " connected");
 			curPlayer++;
 		} else {
 			content += playerCookie;
@@ -120,7 +121,7 @@ public final class WebServer {
 
 		content += ".<BR>Es darf reihum ein Buchstabe geraten werden.<BR>Die Seite lädt automatisch neu.<BR>"
 				+ "Warte auf alle Spieler...</BODY></HTML>";
-		
+
 		sendOkResponse(bw, cookieLines, content);
 
 		if (curPlayer == NUM_PLAYERS) {
@@ -142,27 +143,19 @@ public final class WebServer {
 	private static void processGameRequest(BufferedReader br, BufferedWriter bw) throws Exception {
 		if (processHeaderLines(br, bw) == null) return;
 
-
-
 		// Construct the response message.
 		String content = "<HTML><HEAD><TITLE>Hangman</TITLE>";
 
-		if (true)// TODO Player is current player and form was submitted.
-		{
-			if (true)// TODO Handle single character guess.
-			{
-
-
-
-			} else if (true)// TODO Handle word guess.
-			{
-
-
-
-
-
+		if (playerCookie == curPlayer && (letterGuess != null || wordGuess != null)) {
+			// Player is current player and form was submitted.
+			if (letterGuess != null) {
+				System.out.println("Player " + playerCookie + " guessed letter '" + letterGuess + "'");
+				prevMsg = hangman.checkCharHtml(letterGuess);
+			} else {
+				System.out.println("Player " + playerCookie + " guessed '" + wordGuess + "'");
+				prevMsg = hangman.checkWordHtml(wordGuess);
 			}
-			// TODO Set curPlayer to next player.
+			curPlayer = (curPlayer + 1) % NUM_PLAYERS;
 
 			content += "<META http-equiv=\"refresh\" content=\"0;url=/\"></HEAD><BODY>"
 					+ "<PRE>[ ] [ ]-[ ]<BR>         |<BR>[ ]     [ ]<BR> |     /<BR>[ ]-[ ]<BR>____________</PRE>"
@@ -170,9 +163,7 @@ public final class WebServer {
 					+ hangman.getHangmanHtml()
 					+ "Spieler "
 					+ curPlayer + " ist an der Reihe.";
-
-		} else if (true){ // TODO Player is current player.
-
+		} else if (playerCookie == curPlayer) {
 			content += "</HEAD><BODY>"
 					+ "<PRE>[ ] [ ]-[ ]<BR>         |<BR>[ ]     [ ]<BR> |     /<BR>[ ]-[ ]<BR>____________</PRE>"
 					+ prevMsg + hangman.getHangmanHtml()
@@ -195,8 +186,7 @@ public final class WebServer {
 		}
 		content += "</BODY></HTML>";
 
-		// TODO Send response to player.
-
+		sendOkResponse(bw, null, content);
 
 		if (hangman.win() || hangman.dead()) {
 			gameStarted = false;
@@ -217,25 +207,21 @@ public final class WebServer {
 	private static void processEndRequest(BufferedReader br, BufferedWriter bw) throws Exception {
 		if (processHeaderLines(br, bw) == null) return;
 
-
-
-
 		String content = "<HTML><HEAD><TITLE>Hangman</TITLE></HEAD><BODY>"
 				+ "<PRE>[ ] [ ]-[ ]<BR>         |<BR>[ ]     [ ]<BR> |     /<BR>[ ]-[ ]<BR>____________</PRE>"
 				+ prevMsg + hangman.getHangmanHtml();
 
-		// TODO Add success/fail line with solution word.
-
-
-
-
-
+		if (hangman.win()) {
+			content += "You Win :)<BR>You correctly guessed the word " + hangman.getWord();
+		}
+		if (hangman.dead()) {
+			content += "You lose :(<BR>The correct word would have been " + hangman.getWord();
+		}
 
 		content += "</BODY></HTML>";
 
-		++curPlayer;
-		// TODO Send response to player.
-
+		curPlayer++;
+		sendOkResponse(bw, null, content);
 	}
 
 	/**
@@ -250,26 +236,40 @@ public final class WebServer {
 	 * @throws Exception
 	 */
 	private static String processHeaderLines(BufferedReader br, BufferedWriter bw) throws Exception {
+		//TODO: Make request parsing more resilient
+	
+		// ==== Process request url ====
 		String inLine = br.readLine();
-		if (inLine == null || inLine.isEmpty()){
+		if (inLine == null || inLine.isEmpty()) {
 			return null;
 		} else if (inLine.contains("/favicon.ico")) {
 			sendNotFoundResponse(bw);
 			return  null;
 		}
-		System.out.println(inLine);
 
+		String url = inLine.split(" ")[1];
+		letterGuess = null;
+		wordGuess = null;
+		if (url.startsWith("/?letter=")) {
+			letterGuess = url.charAt(9);
+		} else if (url.startsWith("/?solution=")) {
+			wordGuess = url.substring(11);
+		}
+
+		// ==== Process cookies ====
 		sessionCookie = -1;
 		playerCookie = -1;
 
-		// Parse cookies
-		String headerline = br.readLine();
-		while (headerline != null && !headerline.isEmpty()){
-			String line = br.readLine();
+		// Parse cookies from all header lines
+		String line = br.readLine();
+		while (line != null && !line.isEmpty()) {
 			if (line == "" || line == null) break;
-			if (!line.startsWith("Cookie")) continue;
+			if (!line.startsWith("Cookie")) {
+				line = br.readLine();
+				continue;
+			}
 
-			String cookies = line.substring(7);
+			String cookies = line.substring(8);
 			for (String cookie : cookies.split("; ")) {
 				if (cookie.startsWith("sessionId")) {
 					sessionCookie = Integer.parseInt(cookie.substring(10));
@@ -277,7 +277,7 @@ public final class WebServer {
 					playerCookie = Integer.parseInt(cookie.substring(9));
 				}
 			}
-			headerline = br.readLine();
+			line = br.readLine();
 		}
 
 		return inLine;
