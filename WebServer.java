@@ -89,6 +89,7 @@ public final class WebServer {
 				}
 			}
 		}
+		serverSocket.close();
 	}
 
 	/**
@@ -142,6 +143,11 @@ public final class WebServer {
 	 */
 	private static void processGameRequest(BufferedReader br, BufferedWriter bw) throws Exception {
 		if (processHeaderLines(br, bw) == null) return;
+
+		if (sessionCookie == session) {
+			// This should be a 403 response
+			return;
+		}
 
 		// Construct the response message.
 		String content = "<HTML><HEAD><TITLE>Hangman</TITLE>";
@@ -207,6 +213,11 @@ public final class WebServer {
 	private static void processEndRequest(BufferedReader br, BufferedWriter bw) throws Exception {
 		if (processHeaderLines(br, bw) == null) return;
 
+		if (sessionCookie == session) {
+			// This should be a 403 response
+			return;
+		}
+
 		String content = "<HTML><HEAD><TITLE>Hangman</TITLE></HEAD><BODY>"
 				+ "<PRE>[ ] [ ]-[ ]<BR>         |<BR>[ ]     [ ]<BR> |     /<BR>[ ]-[ ]<BR>____________</PRE>"
 				+ prevMsg + hangman.getHangmanHtml();
@@ -247,6 +258,7 @@ public final class WebServer {
 			return  null;
 		}
 
+		// Crashes if the first line in the request (GET ...) does not consist of three parts, but that will never happen with valid http requests
 		String url = inLine.split(" ")[1];
 		letterGuess = null;
 		wordGuess = null;
